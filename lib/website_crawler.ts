@@ -1,6 +1,9 @@
-import { Page } from 'puppeteer';
+import { Page, HTTPResponse } from 'puppeteer';
 import * as cheerio from 'cheerio';
+
 import sample from 'lodash/sample.js';
+
+import { timeout } from './utils.ts';
 
 export class WebsiteCrawler {
     private page: Page;
@@ -37,7 +40,18 @@ export class WebsiteCrawler {
             this.visitedLinks.add(candidate);
 
             // Visit the candidate link.
-            const res = await this.page.goto(candidate);
+            let res: HTTPResponse | null;
+
+            try {
+                res = await this.page.goto(candidate, {
+                    waitUntil: 'domcontentloaded',
+                    timeout: 1000
+                });
+            } catch (error) {
+                // If timeout or other navigation error occurs, skip this URL.
+                continue;
+            }
+
             if (!res?.ok()) continue;
 
             // Ignore non-HTML links.
@@ -61,6 +75,9 @@ export class WebsiteCrawler {
                     this.candidateLinks.add(normalizedLink);
                 }
             }
+
+            // Wait for a short time to avoid flooding the server.
+            await timeout(500);
         }
 
         return Array.from(this.internalLinks);
