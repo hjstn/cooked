@@ -1,0 +1,3 @@
+[submodule "extensions/autoconsent"]
+	path = extensions/autoconsent
+	url = https://github.com/duckduckgo/autoconsent.git
