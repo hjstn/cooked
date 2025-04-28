@@ -1,7 +1,7 @@
 import path from 'path';
 
 import UserAgent from 'user-agents';
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser, CDPSession, Page } from 'puppeteer';
 
 import { CookedProtocolHost } from './lib/cooked_protocol.ts';
 
@@ -39,6 +39,7 @@ class CookedBrowser {
 
     private browser: Browser;
     private page: Page;
+    private cdp: CDPSession;
 
     static async create() {
         const cookedBrowser = new CookedBrowser();
@@ -71,17 +72,21 @@ class CookedBrowser {
         [this.page] = await this.browser.pages();
 
         this.page.setUserAgent(new UserAgent().random().toString());
+        this.cdp = await this.page.createCDPSession();
     }
 
     public async debug(url: string) {
-        let reportListener;
+        let reportListener: any;
 
-        const reportResult = new Promise<void>((resolve, reject) => {
+        const reportResultPromise = new Promise<any>((resolve, reject) => {
             reportListener = (data: any) => {
                 switch (data.state.lifecycle) {
                     case 'done':
                     case 'nothingDetected':
-                        resolve();
+                        resolve({
+                            cmps: data.state.detectedCmps,
+                            popups: data.state.detectedPopups
+                        });
                         break;
                     default:
                         return;
@@ -91,11 +96,14 @@ class CookedBrowser {
 
         this.extension.on('report', reportListener);
 
-        this.page.goto(url);
+        this.cdp.send('Network.clearBrowserCookies');
 
-        await reportResult;
+        const response = await this.page.goto(url);
+        const report = await reportResultPromise;
 
-        console.log('got some results');
+        console.log(report);
+
+        console.log(await this.browser.cookies());
 
         this.extension.removeListener('report', reportListener);
     }
