@@ -107,10 +107,62 @@ class CookedBrowser {
 
         this.extension.removeListener('report', reportListener);
     }
+
+
+    public async scanWebsites(urls: string[]): Promise<Map<string, string[]>> {
+        const results = new Map<string, string[]>();
+
+        for (const url of urls) {
+            try {
+                let reportListener: any;
+
+                const reportResultPromise = new Promise<any>((resolve, reject) => {
+                    reportListener = (data: any) => {              
+                        if (data.state.lifecycle === 'done' || data.state.lifecycle === 'nothingDetected') {
+                            resolve({
+                                cmps: data.state.detectedCmps,
+                                popups: data.state.detectedPopups
+                            });
+                        }
+                    };
+                });
+
+                this.extension.on('report', reportListener);
+                await this.cdp.send('Network.clearBrowserCookies');
+                await this.page.goto(url);
+                
+                const report = await reportResultPromise;
+                const cookies = await this.browser.cookies();
+                const cookieNames = cookies.map(cookie => cookie.name);
+                
+                results.set(url, cookieNames);
+                
+                this.extension.removeListener('report', reportListener);
+                
+                // Add a small delay between requests to avoid overwhelming the browser
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+            } catch (error) {
+                console.error(`Error scanning ${url}:`, error);
+                results.set(url, [`Error: ${error.message}`]);
+            }
+        }
+
+        return results;
+    }
 }
 
 const cookedBrowser = await CookedBrowser.create();
 
-await cookedBrowser.debug("https://illinois.edu");
+const websites = [
+    'https://illinois.edu',
+    'https://www.economist.com/'
+];
 
-await cookedBrowser.debug("https://www.economist.com/");
+const results = await cookedBrowser.scanWebsites(websites);
+
+for (const [url, cookies] of results) {
+    console.log(`\nWebsite: ${url}`);
+    console.log('Cookies found:', cookies.length);
+    console.log('Cookie names:', cookies);
+}
