@@ -1,9 +1,14 @@
 import path from 'path';
+import fs from 'fs/promises';
+import { URL } from 'url';
+import { parseTranco } from "./lib/tranco.ts";
 
 import UserAgent from 'user-agents';
 import puppeteer, { Browser, CDPSession, Page } from 'puppeteer';
 
 import { CookedProtocolHost } from './lib/cooked_protocol.ts';
+
+const optChoice = 'optOut';
 
 // import { parseTranco } from "./lib/tranco.ts";
 // import { WebsiteCrawler } from './lib/website_crawler.ts';
@@ -54,7 +59,7 @@ class CookedBrowser {
 
         this.extension.on('connection', () => {
             this.extension.send('optChoice', {
-                choice: 'optOut'
+                choice: optChoice
             });
         });
     }
@@ -111,11 +116,14 @@ class CookedBrowser {
 
     public async scanWebsites(urls: string[]): Promise<Map<string, string[]>> {
         const results = new Map<string, string[]>();
+        let processed = 0;
 
         for (const url of urls) {
             try {
-                let reportListener: any;
+                processed++;
+                console.log(`\nProcessing ${processed}/${urls.length}: ${url}`);
 
+                let reportListener: any;
                 const reportResultPromise = new Promise<any>((resolve, reject) => {
                     reportListener = (data: any) => {              
                         if (data.state.lifecycle === 'done' || data.state.lifecycle === 'nothingDetected') {
@@ -129,7 +137,7 @@ class CookedBrowser {
 
                 this.extension.on('report', reportListener);
                 await this.cdp.send('Network.clearBrowserCookies');
-                await this.page.goto(url);
+                await this.page.goto(url, { waitUntil: 'load', timeout: 30000 });
                 
                 const report = await reportResultPromise;
                 const cookies = await this.browser.cookies();
@@ -154,15 +162,39 @@ class CookedBrowser {
 
 const cookedBrowser = await CookedBrowser.create();
 
-const websites = [
-    'https://illinois.edu',
-    'https://www.economist.com/'
-];
+// Parse the Tranco list
+const tranco_entries = await parseTranco('./tranco_sample.csv');
+
+// Take first 10 websites from the list (adjust number as needed)
+// const websites = tranco_entries
+//     .slice(0, 10)
+//     .map(entry => `https://${entry.site}`);
+// Use all websites from the Tranco list
+const websites = tranco_entries.map(entry => `https://${entry.site}`);
+
+console.log(`Starting to scan ${websites.length} websites...`);
 
 const results = await cookedBrowser.scanWebsites(websites);
 
+const cookiesDir = 'results';
+await fs.mkdir(cookiesDir, { recursive: true });
+
 for (const [url, cookies] of results) {
     console.log(`\nWebsite: ${url}`);
-    console.log('Cookies found:', cookies.length);
-    console.log('Cookie names:', cookies);
+    // console.log('Cookies found:', cookies.length);
+    // console.log('Cookie names:', cookies);
+    
+    const websiteName = new URL(url).hostname.replace(/^www\./, '').replace(/\./g, '_');
+    const fileName = path.join(cookiesDir, `${websiteName}_${optChoice}_cookies.txt`);
+    
+    try {
+        await fs.writeFile(fileName, cookies.join('\n'), 'utf8');
+        console.log(`Cookies written to ${fileName}`);
+    } catch (error) {
+        console.error(`Error writing to ${fileName}:`, error);
+    }
 }
+
+console.log('\nScan completed!');
+console.log(`Processed ${websites.length} websites`);
+console.log(`Results saved in ${cookiesDir}/ directory`);
