@@ -16,7 +16,12 @@ class Traverser {
     constructor() {}
 
     async setup() {
-        this.browser = await puppeteer.launch();
+        this.browser = await puppeteer.launch({
+            protocolTimeout: 360_000,
+            args: [
+                '--disable-gpu'
+            ]
+        });
     }
 
     async close() {
