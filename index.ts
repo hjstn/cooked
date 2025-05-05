@@ -8,7 +8,7 @@ import puppeteer, { Browser, CDPSession, Page } from 'puppeteer';
 
 import { CookedProtocolHost } from './lib/cooked_protocol.ts';
 
-const optChoice = 'optOut';
+const optChoice = 'optIn';
 
 // import { parseTranco } from "./lib/tranco.ts";
 // import { WebsiteCrawler } from './lib/website_crawler.ts';
@@ -67,9 +67,11 @@ class CookedBrowser {
     private async _launch() {
         this.browser = await puppeteer.launch({
             headless: false,
+            protocolTimeout: 360_000,
             defaultViewport: null,
             args: [
-                `--load-extension=${path.resolve('extensions/autoconsent/dist/addon-mv3')}`
+                `--load-extension=${path.resolve('extensions/autoconsent/dist/addon-mv3')}`,
+                '--disable-gpu'
             ],
             ignoreDefaultArgs: ['--disable-extensions']
         });
@@ -103,7 +105,7 @@ class CookedBrowser {
 
         this.cdp.send('Network.clearBrowserCookies');
 
-        const response = await this.page.goto(url);
+        const response = await this.page.goto(url, { waitUntil: 'load', timeout: 30000 });
         const report = await reportResultPromise;
 
         console.log(report);
@@ -114,45 +116,85 @@ class CookedBrowser {
     }
 
 
-    public async scanWebsites(urls: string[]): Promise<Map<string, string[]>> {
+    public async scanRelatedWebsiteGroups(websiteGroups: Array<{rank: number, site: string, urls: string[]}>): Promise<Map<string, string[]>> {
         const results = new Map<string, string[]>();
-        let processed = 0;
+        let processedGroups = 0;
 
-        for (const url of urls) {
+        // Create results directory
+        const cookiesDir = 'resultsIn';
+        await fs.mkdir(cookiesDir, { recursive: true });
+
+        for (const group of websiteGroups) {
+            processedGroups++;
+            console.log(`\nProcessing group ${processedGroups}/${websiteGroups.length}: ${group.site}`);
+            
+            if (!group.urls || group.urls.length === 0) {
+                console.log(`No related URLs for ${group.site}, skipping`);
+                continue;
+            }
+
             try {
-                processed++;
-                console.log(`\nProcessing ${processed}/${urls.length}: ${url}`);
-
-                let reportListener: any;
-                const reportResultPromise = new Promise<any>((resolve, reject) => {
-                    reportListener = (data: any) => {              
-                        if (data.state.lifecycle === 'done' || data.state.lifecycle === 'nothingDetected') {
-                            resolve({
-                                cmps: data.state.detectedCmps,
-                                popups: data.state.detectedPopups
-                            });
-                        }
-                    };
-                });
-
-                this.extension.on('report', reportListener);
+                // Clear cookies before starting a new group
                 await this.cdp.send('Network.clearBrowserCookies');
-                await this.page.goto(url, { waitUntil: 'load', timeout: 30000 });
                 
-                const report = await reportResultPromise;
+                // Process each related URL in the group
+                for (const url of group.urls) {
+                    console.log(`  Visiting: ${url}`);
+                    
+                    let reportListener: any;
+                    const reportResultPromise = new Promise<any>((resolve, reject) => {
+                        const timeoutId = setTimeout(() => {
+                            resolve({
+                                cmps: [],
+                                popups: []
+                            });
+                        }, 30000);
+
+                        reportListener = (data: any) => {              
+                            if (data.state.lifecycle === 'done' || data.state.lifecycle === 'nothingDetected') {
+                                clearTimeout(timeoutId);
+                                resolve({
+                                    cmps: data.state.detectedCmps,
+                                    popups: data.state.detectedPopups
+                                });
+                            }
+                        };
+                    });
+
+                    this.extension.on('report', reportListener);
+                    
+                    try {
+                        await this.page.goto(url, { waitUntil: 'load', timeout: 30000 });
+                        await reportResultPromise;
+                    } catch (error) {
+                        console.error(`  Error visiting ${url}: ${error.message}`);
+                    } finally {
+                        this.extension.removeListener('report', reportListener);
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+                
+                // After visiting all related URLs, collect all cookies
                 const cookies = await this.browser.cookies();
                 const cookieNames = cookies.map(cookie => cookie.name);
                 
-                results.set(url, cookieNames);
+                // Store results for the main domain
+                results.set(group.site, cookieNames);
                 
-                this.extension.removeListener('report', reportListener);
+                // Write results to file for this group
+                const websiteName = group.site.replace(/^www\./, '').replace(/\./g, '_');
+                const fileName = path.join(cookiesDir, `${websiteName}_${optChoice}_cookies.txt`);
                 
-                // Add a small delay between requests to avoid overwhelming the browser
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                try {
+                    await fs.writeFile(fileName, cookieNames.join('\n'), 'utf8');
+                    console.log(`Cookies written to ${fileName}`);
+                } catch (error) {
+                    console.error(`Error writing to ${fileName}:`, error);
+                }
                 
             } catch (error) {
-                console.error(`Error scanning ${url}:`, error);
-                results.set(url, [`Error: ${error.message}`]);
+                console.error(`Error processing group ${group.site}:`, error);
+                results.set(group.site, [`Error: ${error.message}`]);
             }
         }
 
@@ -160,41 +202,23 @@ class CookedBrowser {
     }
 }
 
+
+
+// Create browser instance
 const cookedBrowser = await CookedBrowser.create();
 
-// Parse the Tranco list
-const tranco_entries = await parseTranco('./tranco_sample.csv');
+// Read and parse the related websites file
+const relatedWebsitesContent = await fs.readFile('./relatedwebsites.txt', 'utf8');
+const websiteGroups = relatedWebsitesContent
+    .split('\n')
+    .filter(line => line.trim().length > 0)
+    .map(line => JSON.parse(line));
 
-// Take first 10 websites from the list (adjust number as needed)
-// const websites = tranco_entries
-//     .slice(0, 10)
-//     .map(entry => `https://${entry.site}`);
-// Use all websites from the Tranco list
-const websites = tranco_entries.map(entry => `https://${entry.site}`);
+console.log(`Starting to scan ${websiteGroups.length} website groups...`);
 
-console.log(`Starting to scan ${websites.length} websites...`);
-
-const results = await cookedBrowser.scanWebsites(websites);
-
-const cookiesDir = 'results';
-await fs.mkdir(cookiesDir, { recursive: true });
-
-for (const [url, cookies] of results) {
-    console.log(`\nWebsite: ${url}`);
-    // console.log('Cookies found:', cookies.length);
-    // console.log('Cookie names:', cookies);
-    
-    const websiteName = new URL(url).hostname.replace(/^www\./, '').replace(/\./g, '_');
-    const fileName = path.join(cookiesDir, `${websiteName}_${optChoice}_cookies.txt`);
-    
-    try {
-        await fs.writeFile(fileName, cookies.join('\n'), 'utf8');
-        console.log(`Cookies written to ${fileName}`);
-    } catch (error) {
-        console.error(`Error writing to ${fileName}:`, error);
-    }
-}
+// Scan all website groups
+const results = await cookedBrowser.scanRelatedWebsiteGroups(websiteGroups);
 
 console.log('\nScan completed!');
-console.log(`Processed ${websites.length} websites`);
-console.log(`Results saved in ${cookiesDir}/ directory`);
+console.log(`Processed ${websiteGroups.length} website groups`);
+console.log(`Results saved in resultsIn/ directory`);
