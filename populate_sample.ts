@@ -3,8 +3,10 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'url';
 
 import * as cheerio from 'cheerio';
-import sample from 'lodash/sample.js';
 import puppeteer, { Browser, BrowserContext, Page, HTTPResponse } from 'puppeteer';
+
+import sample from 'lodash/sample.js';
+import chunk from 'lodash/chunk.js';
 
 import { parseTranco } from './lib/tranco.ts';
 
@@ -40,7 +42,7 @@ class Traverser {
             return;
         }
 
-        console.log(`Protocol: ${protocol}`);
+        console.log(`Protocol (${site}): ${protocol}`);
 
         const url = this._constructUrl(protocol, site);
 
@@ -95,7 +97,7 @@ class Traverser {
         let text: string | undefined;
 
         try {
-            res = await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+            res = await page.goto(url, { waitUntil: 'load', timeout: 5000 });
 
             if (!res || !res.ok() || !res.headers()['content-type'].includes('text/html')) {
                 return { valid: false, neighbours: [] };
@@ -142,7 +144,7 @@ class Traverser {
             const url = this._constructUrl(protocol, site);
             
             try {
-                await page.goto(url, { waitUntil: 'load', timeout: 30000 });
+                await page.goto(url, { waitUntil: 'load', timeout: 5000 });
 
                 return protocol;
             } catch (error) {
@@ -168,16 +170,36 @@ await traverser.setup();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ws = fs.createWriteStream(path.join(__dirname, 'populated.txt'), { flags: 'w' });
+const populated_file = fs.createWriteStream(path.join(__dirname, 'populated.txt'), { flags: 'a' });
+const checkpoint_file = fs.createWriteStream(path.join(__dirname, 'checkpoint.txt'), { flags: 'w' });
 
-for (const { rank, site } of tranco_sample) {
-    const data = {
-        rank,
-        site,
-        urls: await traverser.traverseSite(site, 15)
-    };
+const last_index = -1;
 
-    ws.write(`${JSON.stringify(data)}\n`);
+const tranco_chunked = chunk(tranco_sample, 10);
+
+for (const [index, chunk] of tranco_chunked.entries()) {
+    if (index <= last_index) continue;
+
+    console.log(`Started processing chunk ${index}`);
+
+    const chunk_result = await Promise.allSettled(
+        chunk.map(async ({ rank, site }) => ({
+            rank,
+            site,
+            urls: await traverser.traverseSite(site, 15)
+        })
+    ));
+
+    for (const result of chunk_result) {
+        if (result.status === 'rejected') {
+            console.log('Rejected', result.reason);
+            continue;
+        }
+
+        populated_file.write(`${JSON.stringify(result.value)}\n`);
+    }
+    
+    checkpoint_file.write(`${index}\n`);
 }
 
 await traverser.close();
