@@ -211,6 +211,7 @@ class CookedBrowser {
     }
 }
 
+// const leaderHostname = 'localhost';
 const leaderHostname = 'linux-ssh-01.ews.illinois.edu';
 
 // Create browser instance
@@ -220,16 +221,29 @@ const dispatchSock = new zmq.Request();
 const resultSock = new zmq.Request();
 
 dispatchSock.connect(`tcp://${leaderHostname}:56301`);
-resultSock.connect(`tcp://${leaderHostname}:56302`);
 
 while (true) {
     await dispatchSock.send('request');
     const [msg] = await dispatchSock.receive();
 
-    const group = JSON.parse(msg.toString());
+    const { group, cookiesDir } = JSON.parse(msg.toString());
     const result = await cookedBrowser.scanRelatedWebsiteGroup(group);
 
-    await resultSock.send(JSON.stringify({ group, result }));
+    if (!result) {
+        console.log(`No result for ${group.site}, skipping`);
+        continue;
+    };
+
+    // Write results to file for this group
+    const websiteName = group.site.replace(/^www\./, '').replace(/\./g, '_');
+    const fileName = path.join(cookiesDir, `${websiteName}_${optChoice}_cookies.txt`);
+    
+    try {
+        await fs.writeFile(fileName, result.join('\n'), 'utf8');
+        console.log(`Cookies written to ${fileName}`);
+    } catch (error) {
+        console.error(`Error writing to ${fileName}:`, error);
+    }
 }
 
 // // Read and parse the related websites file
