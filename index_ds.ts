@@ -68,7 +68,7 @@ class CookedBrowser {
 
     private async _launch() {
         this.browser = await puppeteer.launch({
-            headless: false,
+            headless: true,
             protocolTimeout: 360_000,
             defaultViewport: null,
             args: [
