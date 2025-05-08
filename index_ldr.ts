@@ -26,6 +26,8 @@ resultSock.bindSync('tcp://*:56302');
     for await (const [msg] of resultSock) {
         const { group, result } = JSON.parse(msg.toString());
 
+        console.log(group, result);
+
         if (!result) {
             console.log(`No result for ${group.site}, skipping`);
             continue;
