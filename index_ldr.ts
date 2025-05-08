@@ -52,4 +52,5 @@ for (const group of websiteGroups) {
     console.log(`\nProcessing group ${processedGroups}/${websiteGroups.length}: ${group.site}`);
 
     await dispatchSock.send(JSON.stringify(group));
+    await new Promise((resolve) => setTimeout(resolve, 500));
 }
