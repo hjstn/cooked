@@ -1,8 +1,5 @@
 import * as zmq from 'zeromq';
 import fs from 'fs/promises';
-import path from 'path';
-
-const optChoice = 'optIn';
 
 // Read and parse the related websites file
 const relatedWebsitesContent = await fs.readFile('./relatedwebsites.txt', 'utf8');
@@ -13,7 +10,7 @@ const websiteGroups = relatedWebsitesContent
 
 console.log(`Starting to scan ${websiteGroups.length} website groups...`);
 
-const cookiesDir = 'resultsIn';
+const cookiesDir = 'resultsOut';
 await fs.mkdir(cookiesDir, { recursive: true });
 
 const dispatchSock = new zmq.Reply();

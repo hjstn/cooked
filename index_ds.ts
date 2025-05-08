@@ -10,7 +10,7 @@ import puppeteer, { Browser, CDPSession, Page } from 'puppeteer';
 
 import { CookedProtocolHost } from './lib/cooked_protocol.ts';
 
-const optChoice = 'optIn';
+const optChoice = 'optOut';
 
 // import { parseTranco } from "./lib/tranco.ts";
 // import { WebsiteCrawler } from './lib/website_crawler.ts';
@@ -181,7 +181,7 @@ class CookedBrowser {
         let processedGroups = 0;
 
         // Create results directory
-        const cookiesDir = 'resultsIn';
+        const cookiesDir = 'resultsOut';
         await fs.mkdir(cookiesDir, { recursive: true });
 
         for (const group of websiteGroups) {
