@@ -48,6 +48,8 @@ resultSock.bindSync('tcp://*:56302');
     let processedGroups = 0;
 
     for await (const [msg] of dispatchSock) {
+        console.log(`Processing group ${processedGroups}/${websiteGroups.length}: ${websiteGroups[processedGroups].site}`);
+
         const group = websiteGroups[processedGroups++];
 
         await dispatchSock.send(JSON.stringify(group));
