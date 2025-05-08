@@ -7,7 +7,8 @@
     "puppeteer": "^24.6.0",
     "typescript": "^5.8.3",
     "user-agents": "^1.1.515",
-    "ws": "^8.18.1"
+    "ws": "^8.18.1",
+    "zeromq": "^6.4.2"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.16"
