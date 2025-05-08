@@ -8,7 +8,7 @@ export class CookedProtocolHost extends EventEmitter {
     constructor() {
         super();
 
-        this.wss = new WebSocketServer({ port: 5630 });
+        this.wss = new WebSocketServer({ port: 56303 });
 
         this.wss.on('connection', this._handleConnection.bind(this));
     }
