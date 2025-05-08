@@ -13,12 +13,10 @@ const websiteGroups = relatedWebsitesContent
 
 console.log(`Starting to scan ${websiteGroups.length} website groups...`);
 
-let processedGroups = 0;
-
 const cookiesDir = 'resultsIn';
 await fs.mkdir(cookiesDir, { recursive: true });
 
-const dispatchSock = new zmq.Push();
+const dispatchSock = new zmq.Reply();
 const resultSock = new zmq.Reply();
 
 dispatchSock.bindSync('tcp://*:56301');
@@ -46,11 +44,14 @@ resultSock.bindSync('tcp://*:56302');
     }
 })();
 
-for (const group of websiteGroups) {
-    processedGroups++;
+(async () => {
+    let processedGroups = 0;
 
-    console.log(`\nProcessing group ${processedGroups}/${websiteGroups.length}: ${group.site}`);
+    for await (const [msg] of dispatchSock) {
+        const group = websiteGroups[processedGroups++];
 
-    await dispatchSock.send(JSON.stringify(group));
-    await new Promise((resolve) => setTimeout(resolve, 500));
-}
+        await dispatchSock.send(JSON.stringify(group));
+
+        if (processedGroups >= websiteGroups.length) break;
+    }
+})();

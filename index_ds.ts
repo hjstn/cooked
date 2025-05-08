@@ -216,13 +216,16 @@ const leaderHostname = 'linux-ssh-01.ews.illinois.edu';
 // Create browser instance
 const cookedBrowser = await CookedBrowser.create();
 
-const dispatchSock = new zmq.Pull();
+const dispatchSock = new zmq.Request();
 const resultSock = new zmq.Request();
 
 dispatchSock.connect(`tcp://${leaderHostname}:56301`);
 resultSock.connect(`tcp://${leaderHostname}:56302`);
 
-for await (const [msg] of dispatchSock) {
+while (true) {
+    await dispatchSock.send('request');
+    const [msg] = await dispatchSock.receive();
+
     const group = JSON.parse(msg.toString());
     const result = await cookedBrowser.scanRelatedWebsiteGroup(group);
 
