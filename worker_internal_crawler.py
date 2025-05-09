@@ -1,12 +1,12 @@
 import asyncio
 import argparse
 
-from fake_useragent import UserAgent
 import pika
+from fake_useragent import UserAgent
 from playwright.async_api import async_playwright
 
-from lib.executors.internal_navigator import CookedInternalNavigator
-from lib.mq import CookedChannel, CookedMQ
+from core.mq import CookedChannel, CookedMQ
+from core.executors import CookedInternalNavigator
 from schema.cooked_result_internal_crawler import CookedResultInternalCrawler
 from schema.cooked_task_internal_crawler import CookedTaskInternalCrawler
 
