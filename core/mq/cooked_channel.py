@@ -7,7 +7,7 @@ from pika import DeliveryMode
 from pika.spec import BasicProperties
 from pika.adapters.blocking_connection import BlockingChannel
 
-from lib.mq.cooked_mq import CookedMQ
+from core.mq.cooked_mq import CookedMQ
 
 Task = TypeVar('Task')
 
