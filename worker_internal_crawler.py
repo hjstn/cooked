@@ -3,7 +3,7 @@ import argparse
 
 import pika
 from fake_useragent import UserAgent
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright, Browser
 
 from core.mq import CookedChannel, CookedMQ
 from core.executors import CookedInternalNavigator
@@ -11,33 +11,30 @@ from schema.cooked_result_internal_crawler import CookedResultInternalCrawler
 from schema.cooked_task_internal_crawler import CookedTaskInternalCrawler
 
 
-async def run_crawler_task(mq: CookedMQ):
+async def run_crawler_task(mq: CookedMQ, browser: Browser):
     user_agent = UserAgent().chrome
 
     ic_queue = CookedChannel[CookedTaskInternalCrawler](mq, 'cooked_task_internal_crawler')
     results_queue = CookedChannel[CookedResultInternalCrawler](mq, 'cooked_results_internal_crawler')
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch()
-
-        for task, ack, nack in ic_queue.consume():
-            print(f'Starting work: {task.site}')
+    for task, ack, nack in ic_queue.consume():
+        print(f'Starting work: {task.site}')
+        
+        context = await browser.new_context(user_agent=user_agent)
+        
+        try:
+            navigator = CookedInternalNavigator(context)
+            links = await navigator.visit(task.site, 15)
             
-            context = await browser.new_context(user_agent=user_agent)
-            
-            try:
-                navigator = CookedInternalNavigator(context)
-                links = await navigator.visit(task.site, 15)
-                
-                if links is None:
-                    print(f'Failed to crawl: {task.site}')
-                    ack()
-                    continue
-                    
-                results_queue.send(CookedResultInternalCrawler(**vars(task), urls=links))
+            if links is None:
+                print(f'Failed to crawl: {task.site}')
                 ack()
-            finally:
-                await context.close()
+                continue
+                
+            results_queue.send(CookedResultInternalCrawler(**vars(task), urls=links))
+            ack()
+        finally:
+            await context.close()
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -55,10 +52,10 @@ async def main():
 
     mq = CookedMQ(params)
 
-    await asyncio.gather(*[
-        run_crawler_task(mq)
-        for _ in range(args.max_workers)
-    ])
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+
+        await asyncio.gather(*[run_crawler_task(mq, browser) for _ in range(args.max_workers)])
 
 if __name__ == '__main__':
     asyncio.run(main())
