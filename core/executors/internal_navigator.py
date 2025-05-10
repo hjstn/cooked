@@ -73,19 +73,30 @@ class CookedInternalNavigator():
                 await page.wait_for_timeout(1000)
             except Exception as e:
                 print(f'Failed to visit: {url}, {e}')
+
+                await page.close()
+
                 return None
 
             if 'text/html' not in response.headers.get('content-type', ''):
                 print(f'Not a HTML page: {url}')
+
+                await page.close()
+
                 return None
 
             try:
                 a_tags = await page.query_selector_all('a')
             except Exception as e:
                 print(f'Failed to get query selectors: {url}, {e}')
+
+                await page.close()
+
                 return None
 
             hrefs = [await link.get_attribute('href') for link in a_tags]
+
+            await page.close()
 
             return hrefs
     
@@ -118,6 +129,8 @@ class CookedInternalNavigator():
             except Exception as e:
                 print(e)
                 return None
+            finally:
+                await page.close()
     
     def _random_pop(self, lst: List[any]):
         i = random.randint(0, len(lst) - 1)
