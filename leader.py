@@ -8,7 +8,7 @@ import argparse
 import pika
 from pika.exceptions import UnroutableError
 
-from lib.mq import CookedChannel, CookedMQ
+from core.mq import CookedChannel, CookedMQ
 from schema.cooked_result_internal_crawler import CookedResultInternalCrawler
 from schema.cooked_task_internal_crawler import CookedTaskInternalCrawler
 
