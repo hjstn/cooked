@@ -22,6 +22,8 @@ async def run_crawler_task(mq: CookedMQ, browser: Browser):
         
         context = await browser.new_context(user_agent=user_agent)
         
+        keepalive_page = await context.new_page()
+
         try:
             navigator = CookedInternalNavigator(context)
             links = await navigator.visit(task.site, 15)
@@ -53,7 +55,7 @@ async def main():
     mq = CookedMQ(params)
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch()
+        browser = await p.chromium.launch(headless=False)
 
         await asyncio.gather(*[run_crawler_task(mq, browser) for _ in range(args.max_workers)])
 

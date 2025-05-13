@@ -8,6 +8,8 @@ import argparse
 import pika
 from pika.exceptions import UnroutableError
 
+import pandas as pd
+
 from core.mq import CookedChannel, CookedMQ
 from schema.cooked_result_internal_crawler import CookedResultInternalCrawler
 from schema.cooked_task_internal_crawler import CookedTaskInternalCrawler
@@ -15,7 +17,7 @@ from schema.cooked_task_internal_crawler import CookedTaskInternalCrawler
 async def recv_crawler_results(mq: CookedMQ, results_filename: str, resume: bool = False):
     results_queue = CookedChannel[CookedResultInternalCrawler](mq, 'cooked_results_internal_crawler', fanout=True, purge=not resume)
 
-    with open(results_filename, 'w', buffering=1) as results_file:
+    with open(results_filename, 'a', buffering=1) as results_file:
         for result, ack, nack in results_queue.consume():
             print(f"Writing result for {result.site} to file")
 
@@ -23,7 +25,16 @@ async def recv_crawler_results(mq: CookedMQ, results_filename: str, resume: bool
 
             ack()
 
-async def send_crawler_tasks(mq: CookedMQ, resume: bool = False):
+async def send_crawler_tasks(mq: CookedMQ, previous_filename: str, resume: bool = False):
+    crawled_sites = set()
+    if os.path.exists(previous_filename):
+        results = pd.read_json(previous_filename, lines=True)
+        results = results[results['urls'].apply(len) >= 0]
+
+        crawled_sites = set(results['site'].tolist())
+
+        print(f'Loaded {len(crawled_sites)} from previous results file: {previous_filename}')
+
     with open(os.path.join('data', 'tranco_sample.csv'), 'r') as tranco_file:
         csv_reader = csv.DictReader(tranco_file)
 
@@ -34,6 +45,10 @@ async def send_crawler_tasks(mq: CookedMQ, resume: bool = False):
     ic_queue = CookedChannel[CookedTaskInternalCrawler](mq, 'cooked_task_internal_crawler', purge=not resume)
 
     for site_row in site_rows:
+        if site_row['site'] in crawled_sites:
+            print(f'Skipping {site_row["site"]} because it has already been crawled')
+            continue
+
         while True:
             try:
                 ic_queue.send(CookedTaskInternalCrawler(**site_row))
@@ -50,6 +65,7 @@ async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--host', type=str, default='localhost')
     parser.add_argument('--resume', action='store_true', default=False)
+    parser.add_argument('--previous', type=str, default='results/internal_links.jsonl')
     parser.add_argument('--results', type=str, default='results/internal_links.jsonl')
     parser.add_argument('--username', type=str, default='ews')
     parser.add_argument('--password', type=str, default='')
@@ -66,7 +82,7 @@ async def main():
     print('Connected to message queue')
 
     await asyncio.gather(
-        send_crawler_tasks(mq, resume=args.resume),
+        send_crawler_tasks(mq, resume=args.resume, previous_filename=args.previous),
         recv_crawler_results(mq, resume=args.resume, results_filename=args.results)
     )
 
