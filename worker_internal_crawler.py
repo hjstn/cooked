@@ -52,11 +52,11 @@ async def main():
         credentials=pika.credentials.PlainCredentials(args.username, args.password)
     )
 
+
     mq = CookedMQ(params)
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=False)
-
         await asyncio.gather(*[run_crawler_task(mq, browser) for _ in range(args.max_workers)])
 
 if __name__ == '__main__':
