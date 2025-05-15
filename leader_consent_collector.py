@@ -10,9 +10,9 @@ from pika.exceptions import UnroutableError
 import pandas as pd
 
 from core.mq import CookedChannel, CookedMQ
-from schema.cooked_consent_task import CookedConsentTask
-from schema.cooked_consent_result import CookieConsentResult
-from schema.consent_action import ConsentAction
+from schema.cooked_task_consent_collector import CookedTaskConsentCollector
+from schema.cooked_result_consent_collector import CookedResultConsentCollector
+from schema.cooked_consent_action import CookedConsentAction
 
 async def recv_consent_results(mq: CookedMQ, results_filename: str, resume: bool = False):
     """
@@ -23,7 +23,7 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str, resume: bool
         results_filename: File to write results to
         resume: Whether to resume from previous state
     """
-    results_queue = CookedChannel[CookieConsentResult](mq, 'cooked_consent_results', fanout=True, purge=not resume)
+    results_queue = CookedChannel[CookedResultConsentCollector](mq, 'cooked_consent_results', fanout=True, purge=not resume)
 
     with open(results_filename, 'a', buffering=1) as results_file:
         for result, ack, nack in results_queue.consume():
@@ -45,7 +45,7 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str, resume: bool
             ack()
 
 async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, previous_filename: str = None, 
-                            action: ConsentAction = ConsentAction.OPT_OUT,
+                            action: CookedConsentAction = CookedConsentAction.OPT_OUT,
                             max_urls_per_site: int = 5, resume: bool = False):
     """
     Load website groups from internal_links.jsonl and send tasks to the message queue.
@@ -95,7 +95,7 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, previou
     print(f'Loaded {len(sites_data)} sites from internal links file')
     
     # Set up the task queue
-    task_queue = CookedChannel[CookedConsentTask](mq, 'cooked_consent_tasks', purge=not resume)
+    task_queue = CookedChannel[CookedTaskConsentCollector](mq, 'cooked_consent_tasks', purge=not resume)
     
     # Process each site
     task_id = 1
@@ -123,7 +123,7 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, previou
             formatted_urls = formatted_urls[:max_urls_per_site]
         
         # Create the task
-        task = CookedConsentTask(
+        task = CookedTaskConsentCollector(
             urls=formatted_urls,
             action=action
         )
@@ -163,10 +163,10 @@ async def main():
     
     # Convert action string to enum
     try:
-        consent_action = ConsentAction(args.action)
+        consent_action = CookedConsentAction(args.action)
     except ValueError:
         print(f"Invalid action '{args.action}', defaulting to OPT_OUT")
-        consent_action = ConsentAction.OPT_OUT
+        consent_action = CookedConsentAction.OPT_OUT
     
     # Set up RabbitMQ connection
     params = pika.ConnectionParameters(

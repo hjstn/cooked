@@ -6,6 +6,7 @@ import asyncio
 import argparse
 
 import pika
+from pika.credentials import PlainCredentials
 from pika.exceptions import UnroutableError
 
 import pandas as pd
@@ -74,7 +75,7 @@ async def main():
     params = pika.ConnectionParameters(
         host=args.host,
         virtual_host='/',
-        credentials=pika.credentials.PlainCredentials(args.username, args.password)
+        credentials=PlainCredentials(args.username, args.password)
     )
 
     mq = CookedMQ(params, leader=True)

@@ -9,6 +9,8 @@ class CookedWS:
     wss: websockets.Server | None = None
     port: int | None = None
 
+    server_task: asyncio.Task | None = None
+
     listeners = []
 
     def __init__(self):
@@ -18,8 +20,15 @@ class CookedWS:
         self.wss = await websockets.serve(self._handle_connection, 'localhost', 0)
         self.port = list(self.wss.sockets)[0].getsockname()[1]
 
-        asyncio.create_task(self.wss.serve_forever())
+        self.server_task = asyncio.create_task(self.wss.serve_forever())
+    
+    async def close(self):
+        if self.server_task is not None:
+            self.server_task.cancel()
 
+        if self.wss is not None:
+            self.wss.close()
+            await self.wss.wait_closed()
 
     async def _handle_connection(self, websocket: websockets.ServerConnection):
         self.connected.set()

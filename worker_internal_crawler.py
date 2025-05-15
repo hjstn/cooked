@@ -2,6 +2,8 @@ import asyncio
 import argparse
 
 import pika
+from pika.credentials import PlainCredentials
+
 from fake_useragent import UserAgent
 from playwright.async_api import async_playwright, Browser
 
@@ -49,7 +51,7 @@ async def main():
     params = pika.ConnectionParameters(
         host=args.host,
         virtual_host='/',
-        credentials=pika.credentials.PlainCredentials(args.username, args.password)
+        credentials=PlainCredentials(args.username, args.password)
     )
 
 

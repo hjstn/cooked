@@ -1,9 +1,11 @@
-from typing import List, Union
+from typing import List, Union, TypeVar
 
 import random
 from urllib.parse import urlparse, ParseResult
 
 from playwright.async_api import BrowserContext
+
+T = TypeVar('T')
 
 class CookedInternalNavigator():
     SCHEMES = ['https', 'http']
@@ -49,7 +51,7 @@ class CookedInternalNavigator():
 
         return [link.geturl() for link in internal_links]
 
-    async def _links_filter(self, url: ParseResult, links: List[str]):
+    async def _links_filter(self, url: ParseResult, links: List[str | None]) -> List[ParseResult]:
         # Filter out external links
         links_parsed = [
             urlparse(link, scheme=url.scheme)
@@ -63,7 +65,7 @@ class CookedInternalNavigator():
 
         return list(normalized_links)
 
-    async def _links_search(self, url: str) -> Union[List[str], None]:
+    async def _links_search(self, url: str) -> Union[List[str | None], None]:
         print(f'Visiting {url}')
 
         async with await self.context.new_page() as page:
@@ -78,7 +80,7 @@ class CookedInternalNavigator():
 
                 return None
 
-            if 'text/html' not in response.headers.get('content-type', ''):
+            if not response or 'text/html' not in response.headers.get('content-type', ''):
                 print(f'Not a HTML page: {url}')
 
                 await page.close()
@@ -100,7 +102,7 @@ class CookedInternalNavigator():
 
             return hrefs
     
-    async def _url_detect(self, domain: str):
+    async def _url_detect(self, domain: str) -> Union[ParseResult, None]:
         for scheme in self.SCHEMES:
             for subdomain in self.SUBDOMAINS:
                 if subdomain is not None:
@@ -120,7 +122,7 @@ class CookedInternalNavigator():
         
         return None
 
-    async def _connect_try(self, url: str) -> Union[str, None]:
+    async def _connect_try(self, url: str) -> Union[ParseResult, None]:
         async with await self.context.new_page() as page:
             try:
                 await page.goto(url, wait_until='commit')
@@ -132,7 +134,7 @@ class CookedInternalNavigator():
             finally:
                 await page.close()
     
-    def _random_pop(self, lst: List[any]):
+    def _random_pop(self, lst: List[T]) -> T:
         i = random.randint(0, len(lst) - 1)
 
         elem = lst[i]
