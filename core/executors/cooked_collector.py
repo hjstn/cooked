@@ -45,6 +45,7 @@ class CookedCollector:
 
         await self._setup_extension()
         await self._setup_websocket()
+
     
     async def close(self) -> None:
         await self.context.close()
@@ -83,6 +84,7 @@ class CookedCollector:
         result = False
 
         def handle_message(message: dict):
+            # print('msg', message['type'])
             match message['type']:
                 case 'cmpDetected':
                     cmps.add(message['cmp'])
@@ -97,7 +99,13 @@ class CookedCollector:
         self.ws.listeners.append(handle_message)
 
         async with await self.context.new_page() as page:
-            await page.goto(url)
+
+            try:
+                await page.goto(url)
+            except Exception as e: # for pages like amazonaws.com 
+                print(e)
+                cookies = set()
+                return cookies, cmps, popups, result
 
             # wait until autoconsent is done, or 1 second has passed
             await self._await_timeout(asyncio.create_task(autoconsent_finished.wait()), timeout=1)
@@ -132,7 +140,7 @@ class CookedCollector:
             'type': 'cooked',
             'subtype': 'updateConfig',
             'configChange': {
-                'autoAction': self._get_opt_value(opt_choice)
+                'autoAction': await self._get_opt_value(opt_choice)
             }
         })
 
@@ -151,10 +159,13 @@ class CookedCollector:
 
         if self.ws.port is not None:
             await self._send_init(self.ws.port)
-
+        
         await self.ws.connected.wait()
 
     async def _setup_extension(self) -> None:
+
+        await self.context.wait_for_event('serviceworker')
+
         self.extension_worker = self.context.service_workers[0]
         self.extension_id = self.extension_worker.url.split('/')[2]
 

@@ -21,7 +21,10 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
     task_queue = CookedChannel[CookedTaskConsentCollector](mq, 'cooked_task_consent_collector')
     results_queue = CookedChannel[CookedResultConsentCollector](mq, 'cooked_results_consent_collector')
 
+
     for task, ack, nack in task_queue.consume():
+
+        print("consuming")
         with tempfile.TemporaryDirectory(dir=user_data_root) as user_data_dir:
             print(f'Starting work: {task.site}')
             
