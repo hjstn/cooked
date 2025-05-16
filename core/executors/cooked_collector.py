@@ -127,10 +127,10 @@ class CookedCollector:
                 }
             """, [self.extension_id, message])
 
-            if response is None:
-                await asyncio.sleep(1)
+            if response is not None:
+                return response
 
-            return response
+            await asyncio.sleep(1)
     
     async def _send_init(self, port: int) -> bool:
         return await self.send_message({
