@@ -3,7 +3,8 @@ import json
 import time
 import asyncio
 import argparse
-from typing import List, Dict, Any, Set
+
+import pickle
 
 import pika
 from pika.exceptions import UnroutableError
@@ -27,7 +28,7 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str, resume: bool
 
     with open(results_filename, 'a', buffering=1) as results_file:
         for result, ack, nack in results_queue.consume():
-            site = result.site.replace('https://', '').replace('http://', '').split('/')[0]
+            site = result.site
             print(f"Writing consent result for {site} to file")
 
             # Convert result to JSON-serializable dict
@@ -46,94 +47,54 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str, resume: bool
             results_file.write(f'{json.dumps(result_dict)}\n')
             ack()
 
-async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action: CookedConsentAction, resume: bool = True, previous_filename: str = 'results/internal_links.jsonl'):
-    # Load internal links data
-    if not os.path.exists(internal_links_filename):
-        print(f'Error: Internal links file {internal_links_filename} not found')
-        return
+async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action: CookedConsentAction, resume: bool = True, previous_filename: str = 'results/consent_results.jsonl'):
+    crawled_sites = set()
+    if os.path.exists(previous_filename):
+        results = pd.read_json(os.path.abspath(previous_filename), lines=True)
+        if not results.empty:
+            crawled_sites = set(results['site'].tolist())
 
-    # Track sites that have already been processed
-    processed_sites = set()
-    
-    # Load previously processed sites if resuming
-    if previous_filename and os.path.exists(previous_filename):
-        print(f'Loading previously processed sites from {previous_filename}')
-        try:
-            with open(previous_filename, 'r') as f:
-                for line in f:
-                    if line.strip():
-                        result = json.loads(line)
-                        site = result.get('site', '').replace('https://', '').replace('http://', '').split('/')[0]
-                        processed_sites.add(site)
-            
-            print(f'Loaded {len(processed_sites)} previously processed sites from {previous_filename}')
-        except Exception as e:
-            print(f'Error loading previous results: {e}')
+        print(f'Loaded {len(crawled_sites)} from previous results file: {previous_filename}')
 
     # Load internal links data
     if not os.path.exists(internal_links_filename):
         print(f'Error: Internal links file {internal_links_filename} not found')
         return
     
-    # Read the internal links file
-    sites_data = []
-    with open(internal_links_filename, 'r') as f:
-        for line in f:
-            if line.strip():
-                try:
-                    site_data = json.loads(line)
-                    sites_data.append(site_data)
-                except json.JSONDecodeError as e:
-                    print(f'Error parsing JSON line: {e}')
+    sites_data = pd.read_json(internal_links_filename, lines=True).to_dict(orient='records')
     
     print(f'Loaded {len(sites_data)} sites from internal links file')
-
-    ###
 
     # Set up the task queue
     task_queue = CookedChannel[CookedTaskConsentCollector](mq, 'cooked_task_consent_collector')
     
     # Process each site
-    task_id = 1
     for site_data in sites_data:
-        site = site_data.get('site', '')
+        site = site_data['site']
         urls = site_data.get('urls', [])
-        
-        # Skip sites that have already been processed
-        if site in processed_sites:
-            print(f'Skipping {site} because it has already been processed')
+
+        if site in crawled_sites:
+            print(f'Skipping {site_data["site"]} because it has already been crawled')
             continue
-
-        # Ensure URLs are properly formatted
-        print(site)
-
-        formatted_urls = ['https://' + site]
-        for url in urls:
-            if url.startswith('http://') or url.startswith('https://'):
-                formatted_urls.append(url)
-            else:
-                formatted_urls.append(f'https://{url}')
-
 
         # Create the task
         task = CookedTaskConsentCollector(
             site=site,
-            urls=formatted_urls,
-            action=action
+            urls=urls,
+            action=action.value
         )
-        
+
         # Send the task to the queue with retry logic
         while True:
             try:
                 task_queue.send(task)
-                print(f'Sent task for {site} with {len(formatted_urls)} URLs')
-                task_id += 1
+
                 break
             except UnroutableError as e:
                 print(f'Failed to send task: {e}')
                 time.sleep(5)
     
-    print(f'Sent {task_id-1} tasks to message queue')
+    print(f'Sent all tasks to message queue')
 
 async def main():
     """Main entry point for the consent leader."""
@@ -146,8 +107,8 @@ async def main():
                         help='File containing previous results (for resuming)')
     parser.add_argument('--results', type=str, default='results/consent_results.jsonl', 
                         help='File to write results to')
-    parser.add_argument('--username', type=str, default='guest', help='RabbitMQ username')
-    parser.add_argument('--password', type=str, default='guest', help='RabbitMQ password')
+    parser.add_argument('--username', type=str, default='ews', help='RabbitMQ username')
+    parser.add_argument('--password', type=str, default='', help='RabbitMQ password')
     parser.add_argument('--action', type=str, choices=['optIn', 'optOut', 'none'], 
                         default='optOut', help='Consent action to take')
     
@@ -159,7 +120,7 @@ async def main():
     except ValueError:
         print(f"Invalid action '{args.action}', defaulting to OPT_OUT")
         consent_action = CookedConsentAction.OPT_OUT
-    
+
     # Set up RabbitMQ connection
     params = pika.ConnectionParameters(
         host=args.host,
