@@ -120,11 +120,17 @@ class CookedCollector:
         return cookies, cmps, popups, result
 
     async def send_message(self, message: dict) -> Any:
-        return await self.extension_background_page.evaluate("""
-            ([extensionId, message]) => {
-                return new Promise((resolve) => chrome.runtime.sendMessage(extensionId, message, resolve));
-            }
-          """, [self.extension_id, message])
+        while True:
+            response = await self.extension_background_page.evaluate("""
+                ([extensionId, message]) => {
+                    return new Promise((resolve) => chrome.runtime.sendMessage(extensionId, message, resolve));
+                }
+            """, [self.extension_id, message])
+
+            if response is None:
+                await asyncio.sleep(1)
+
+            return response
     
     async def _send_init(self, port: int) -> bool:
         return await self.send_message({
@@ -161,9 +167,7 @@ class CookedCollector:
         await self.ws.connected.wait()
 
     async def _setup_extension(self) -> None:
-        await self.context.wait_for_event('serviceworker')
-
-        self.extension_worker = self.context.service_workers[0]
+        self.extension_worker = await self.context.wait_for_event('serviceworker')
         self.extension_id = self.extension_worker.url.split('/')[2]
 
         self.extension_background_page = await self.context.new_page()
