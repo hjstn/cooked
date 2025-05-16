@@ -24,13 +24,12 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
 
     for task, ack, nack in task_queue.consume():
 
-        print("consuming")
         with tempfile.TemporaryDirectory(dir=user_data_root) as user_data_dir:
             print(f'Starting work: {task.site}')
             
             collector = CookedCollector(p, user_agent, user_data_dir, extension_path, task.action)
             await collector.setup()
-
+            print("setup complete")
             try:
                 cookies, cmps, popups, pages_with_cmps, pages_with_popups = await collector.visit(task.urls)
 
