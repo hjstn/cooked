@@ -44,7 +44,7 @@ class CookedCollector:
         await self.context.close()
         await self.ws.close()
     
-    async def visit(self, urls: list[str]) -> Tuple[set[str], set[str], set[str], int, int]:
+    async def visit(self, urls: list[str]) -> Tuple[set[str], set[str], set[str], int, int, str, bool]:
         cookies = set()
 
         cmps = set()
@@ -52,29 +52,36 @@ class CookedCollector:
 
         pages_with_cmps = 0
         pages_with_popups = 0
+        errors = ''
+        results = False
 
         for url in urls:
-            page_cookies, page_cmps, page_popups, _ = await self.visit_page(url)
+            cookies, cmps, popups, error, result = await self.visit_page(url)
 
-            cookies.update(page_cookies)
+            cookies.update(cookies)
 
-            cmps.update(page_cmps)
-            popups.update(page_popups)
+            cmps.update(cmps)
+            popups.update(popups)
 
-            if len(page_cmps) > 0:
+            errors += error
+            results = results or result
+
+            if len(cmps) > 0:
                 pages_with_cmps += 1
 
-            if len(page_popups) > 0:
+            if len(popups) > 0:
                 pages_with_popups += 1
 
-        return cookies, cmps, popups, pages_with_cmps, pages_with_popups
+        return cookies, cmps, popups, pages_with_cmps, pages_with_popups, errors, results
 
-    async def visit_page(self, url: str) -> Tuple[set[str], set[str], set[str], bool]:
+    async def visit_page(self, url: str) -> Tuple[set[str], set[str], set[str], str, bool]:
         autoconsent_finished = asyncio.Event()
 
+        cookies = set()
         cmps = set()
         popups = set()
         result = False
+        error = ''
 
         def handle_message(message: dict):
             # print('msg', message['type'])
@@ -85,8 +92,12 @@ class CookedCollector:
                     popups.add(message['cmp'])
                 case 'optOutResult' | 'optInResult':
                     nonlocal result
-                    result = result or message['result']
-                case 'autoconsentDone' | 'autoconsentError':
+                    result = message['result'] or result
+                case 'autoconsentDone':
+                    autoconsent_finished.set()
+                case 'autoconsentError':
+                    nonlocal error
+                    error += 'Autoconsent error: ' + message['details'] + ', '
                     autoconsent_finished.set()
 
         self.ws.listeners.append(handle_message)
@@ -106,11 +117,11 @@ class CookedCollector:
                 cookies = await self._get_cookies(page)
             except Exception as e: # for pages like amazonaws.com 
                 print(f'Failed to visit {url}, {e}')
-                cookies = set()
+                error += f'Failed to visit {url}, '
             finally:
                 await page.close()
 
-        return cookies, cmps, popups, result
+        return cookies, cmps, popups, error, result
 
     async def send_message(self, message: dict) -> Any:
         while True:

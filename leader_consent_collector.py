@@ -27,7 +27,6 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str):
 
     with open(results_filename, 'a', buffering=1) as results_file:
         for result, ack, nack in results_queue.consume():
-            print(result)
             site = result.site.replace('https://', '').replace('http://', '').split('/')[0]
             print(f"Writing consent result for {site} to file")
 

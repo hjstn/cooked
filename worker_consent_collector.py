@@ -29,9 +29,8 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
             
             collector = CookedCollector(p, user_agent, user_data_dir, extension_path, task.action)
             await collector.setup()
-            print("setup complete")
             try:
-                cookies, cmps, popups, pages_with_cmps, pages_with_popups = await collector.visit(task.urls)
+                cookies, cmps, popups, pages_with_cmps, pages_with_popups, error, result = await collector.visit(task.urls)
 
                 results_queue.send(CookedResultConsentCollector(
                     site=task.site,
@@ -44,8 +43,8 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
                     pages_with_cmps=pages_with_cmps,
                     pages_with_popups=pages_with_popups,
 
-                    success=True,
-                    error=None
+                    success=result,
+                    error=error
                 ))
                 ack()
             finally:
