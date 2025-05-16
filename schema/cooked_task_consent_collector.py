@@ -14,4 +14,4 @@ class CookedTaskConsentCollector:
     """
     site: str
     urls: List[str] 
-    action: str
+    action: CookedConsentAction

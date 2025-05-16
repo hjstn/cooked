@@ -66,7 +66,7 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
     print(f'Loaded {len(sites_data)} sites from internal links file')
 
     # Set up the task queue
-    task_queue = CookedChannel[CookedTaskConsentCollector](mq, 'cooked_task_consent_collector')
+    task_queue = CookedChannel[CookedTaskConsentCollector](mq, 'cooked_task_consent_collector', purge=not resume)
     
     # Process each site
     for site_data in sites_data:
@@ -81,7 +81,7 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
         task = CookedTaskConsentCollector(
             site=site,
             urls=urls,
-            action=action.value
+            action=action
         )
 
         # Send the task to the queue with retry logic

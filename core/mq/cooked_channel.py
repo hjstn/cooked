@@ -25,6 +25,7 @@ class CookedChannel(Generic[Task]):
 
         if mq.leader and purge:
             # Producer only
+            print(f'Purging queue {queue}')
             self.channel.queue_purge(queue=queue)
         else:
             # Consumer only
