@@ -23,12 +23,16 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
 
 
     for task, ack, nack in task_queue.consume():
-
         with tempfile.TemporaryDirectory(dir=user_data_root, ignore_cleanup_errors=True) as user_data_dir:
-            print(f'Starting work: {task.site}')
+            print(f'Starting work: {task.site} ({task.action.value})')
             
             collector = CookedCollector(p, user_agent, user_data_dir, extension_path, task.action)
             await collector.setup()
+<<<<<<< HEAD
+=======
+            print("setup complete")
+
+>>>>>>> 6f9d0a2 (update crawler)
             try:
                 cookies, cmps, popups, pages_with_cmps, pages_with_popups, error, result = await collector.visit(task.urls)
 
@@ -47,8 +51,13 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
                     error=error
                 ))
                 ack()
+                continue
+            except Exception as e:
+                print(f'Failed to visit {task.site}, {e}')
             finally:
                 await collector.close()
+            
+            nack()
             
 
 async def main():
