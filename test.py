@@ -35,7 +35,7 @@ async def main():
     
     async with async_playwright() as p:
         for task in tasks:
-            with tempfile.TemporaryDirectory(dir=user_data_root) as user_data_dir:
+            with tempfile.TemporaryDirectory(dir=user_data_root, ignore_cleanup_errors=True) as user_data_dir:
                 print(f'Starting task for {task.urls[0]}')
                 collector = CookedCollector(p, user_agent, user_data_dir, extension_path, task.action)
                 await collector.setup()

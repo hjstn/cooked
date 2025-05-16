@@ -24,7 +24,7 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
 
     for task, ack, nack in task_queue.consume():
 
-        with tempfile.TemporaryDirectory(dir=user_data_root) as user_data_dir:
+        with tempfile.TemporaryDirectory(dir=user_data_root, ignore_cleanup_errors=True) as user_data_dir:
             print(f'Starting work: {task.site}')
             
             collector = CookedCollector(p, user_agent, user_data_dir, extension_path, task.action)
