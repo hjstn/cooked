@@ -35,10 +35,11 @@ class CookedBackground {
     storedConfig = { ...storedConfig, ...configChange };
     console.log('[cooked] updating config', storedConfig);
 
-    console.log('updated config', storedConfig);
     await storageSet({
         config: storedConfig,
     });
+
+    return storedConfig;
   }
 
   private _open() {
@@ -60,9 +61,13 @@ export async function cookedInit() {
 
     switch (message.subtype) {
       case 'init':
-        return sendResponse(background.init(message.port));
+        background.init(message.port);
+        break;
       case 'updateConfig':
-        return sendResponse(background.updateConfig(message.configChange));
+        background.updateConfig(message.configChange);
+        break;
     }
+
+    return sendResponse(true);
   });
 }
