@@ -11,10 +11,8 @@ class CookedInternalNavigator():
     SCHEMES = ['https', 'http']
     SUBDOMAINS = [None, 'www']
 
-    context: BrowserContext
-
     def __init__(self, context: BrowserContext):
-        self.context = context
+        self.context: BrowserContext = context
     
     async def visit(self, domain: str, n: int = 1) -> Union[List[str], None]:
         url_parsed = await self._url_detect(domain)
@@ -51,7 +49,7 @@ class CookedInternalNavigator():
 
         return [link.geturl() for link in internal_links]
 
-    async def _links_filter(self, url: ParseResult, links: List[str | None]) -> List[ParseResult]:
+    async def _links_filter(self, url: ParseResult, links: List[Union[str, None]]) -> List[ParseResult]:
         # Filter out external links
         links_parsed = [
             urlparse(link, scheme=url.scheme)
@@ -65,7 +63,7 @@ class CookedInternalNavigator():
 
         return list(normalized_links)
 
-    async def _links_search(self, url: str) -> Union[List[str | None], None]:
+    async def _links_search(self, url: str) -> Union[List[Union[str, None]], None]:
         print(f'Visiting {url}')
 
         async with await self.context.new_page() as page:

@@ -19,7 +19,7 @@ class CookedChannel(Generic[Task]):
         self.mq: CookedMQ = mq
         self.queue: str = queue
         self.purge: bool = purge
-        self.fanou: bool = fanout
+        self.fanout: bool = fanout
 
         self.channel: BlockingChannel = mq._channel(queue)
 
