@@ -99,25 +99,23 @@ class CookedCollector:
         self.ws.listeners.append(handle_message)
 
         async with await self.context.new_page() as page:
-
             try:
                 await page.goto(url)
+
+                # wait until autoconsent is done, or 1 second has passed
+                await self._await_timeout(asyncio.create_task(autoconsent_finished.wait()), timeout=1)
+
+                # wait one more second to stabilize
+                await asyncio.sleep(1)
+
+                self.ws.listeners.remove(handle_message)
+
+                cookies = await self._get_cookies(page)
             except Exception as e: # for pages like amazonaws.com 
-                print(e)
+                print(f'Failed to visit {url}, {e}')
                 cookies = set()
-                return cookies, cmps, popups, result
-
-            # wait until autoconsent is done, or 1 second has passed
-            await self._await_timeout(asyncio.create_task(autoconsent_finished.wait()), timeout=1)
-
-            # wait one more second to stabilize
-            await asyncio.sleep(1)
-
-            self.ws.listeners.remove(handle_message)
-
-            cookies = await self._get_cookies(page)
-
-            await page.close()
+            finally:
+                await page.close()
 
         return cookies, cmps, popups, result
 
@@ -140,11 +138,11 @@ class CookedCollector:
             'type': 'cooked',
             'subtype': 'updateConfig',
             'configChange': {
-                'autoAction': await self._get_opt_value(opt_choice)
+                'autoAction': self._get_opt_value(opt_choice)
             }
         })
 
-    async def _get_opt_value(self, opt_choice: CookedConsentAction) -> Union[str, None]:
+    def _get_opt_value(self, opt_choice: CookedConsentAction) -> Union[str, None]:
         match opt_choice:
             case CookedConsentAction.BASELINE:
                 return None
