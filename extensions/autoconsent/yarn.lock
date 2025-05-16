@@ -961,10 +961,10 @@
   dependencies:
     "@types/deep-eql" "*"
 
-"@types/chrome@^0.0.322":
-  version "0.0.322"
-  resolved "https://registry.yarnpkg.com/@types/chrome/-/chrome-0.0.322.tgz#70abb352dfd619d58a5f3c6dc2cd2cdf920dc434"
-  integrity sha512-glbRm82TzLLJfi3ttlnn7HR9KIX5OYeTo9Xug0Hna03JvaqNipZT+P/q/O5kxOvUQqKUqmn8NAOrcRSG6BOQAw==
+"@types/chrome@^0.0.313":
+  version "0.0.313"
+  resolved "https://registry.yarnpkg.com/@types/chrome/-/chrome-0.0.313.tgz#86487f51072c181a12495ae3e63a6701ade1a296"
+  integrity sha512-9R5T7gTaYZhkxlu+Ho4wk9FL+y/werWQY2yjGWSqCuiTsqS7nL/BE5UMTP6rU7J+oIG2FRKqrEycHhJATeltVA==
   dependencies:
     "@types/filesystem" "*"
     "@types/har-format" "*"

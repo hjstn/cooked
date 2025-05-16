@@ -44,7 +44,6 @@ class CookedCollector:
         )
 
         await self._setup_extension()
-        print("extension complete")
         await self._setup_websocket()
 
     
@@ -162,6 +161,8 @@ class CookedCollector:
         await self.ws.connected.wait()
 
     async def _setup_extension(self) -> None:
+        await self.context.wait_for_event('serviceworker')
+
         self.extension_worker = self.context.service_workers[0]
         self.extension_id = self.extension_worker.url.split('/')[2]
 
