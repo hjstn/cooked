@@ -10,29 +10,22 @@ from schema.cooked_consent_action import CookedConsentAction
 T = TypeVar('T')
 
 class CookedCollector:
-    p: Playwright
-    user_agent: str
-
-    user_data_dir: str
-    extension_path: str
-    opt_choice: CookedConsentAction
-
-    context: BrowserContext
-
-    extension_id: str
-    extension_worker: Worker
-    extension_background_page: Page
-
-    ws: CookedWS
-
     def __init__(self, p: Playwright, user_agent: str, user_data_dir: str, extension_path: str, opt_choice: CookedConsentAction = CookedConsentAction.BASELINE):
-        self.p = p
-        self.user_agent = user_agent
+        self.p: Playwright = p
+        self.user_agent: str = user_agent
 
-        self.user_data_dir = user_data_dir
-        self.extension_path = extension_path
+        self.user_data_dir: str = user_data_dir
+        self.extension_path: str = extension_path
 
-        self.opt_choice = opt_choice
+        self.opt_choice: CookedConsentAction = opt_choice
+
+        self.context: BrowserContext | None = None
+
+        self.extension_id: str | None = None
+        self.extension_worker: Worker | None = None
+        self.extension_background_page: Page | None = None
+
+        self.ws: CookedWS | None = None
 
     async def setup(self) -> None:
         self.context = await self.p.chromium.launch_persistent_context(

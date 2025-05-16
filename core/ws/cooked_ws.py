@@ -4,17 +4,15 @@ import traceback
 import websockets
 
 class CookedWS:
-    connected: asyncio.Event
-
-    wss: websockets.Server | None = None
-    port: int | None = None
-
-    server_task: asyncio.Task | None = None
-
-    listeners = []
-
     def __init__(self):
-        self.connected = asyncio.Event()
+        self.connected: asyncio.Event = asyncio.Event()
+
+        self.wss: websockets.Server | None = None
+        self.port: int | None = None
+
+        self.server_task: asyncio.Task | None = None
+
+        self.listeners = []
 
     async def setup(self):
         self.wss = await websockets.serve(self._handle_connection, 'localhost', 0)

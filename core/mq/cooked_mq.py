@@ -2,16 +2,11 @@ import pika
 from pika.adapters.blocking_connection import BlockingChannel
 
 class CookedMQ:
-    params: pika.ConnectionParameters
-    leader: bool = False
-
-    connection: pika.BlockingConnection = None
-
     def __init__(self, params: pika.ConnectionParameters, leader=False):
-        self.params = params
-        self.leader = leader
+        self.params: pika.ConnectionParameters = params
+        self.leader: bool = leader
 
-        self.connection = pika.BlockingConnection(params)
+        self.connection: pika.BlockingConnection = pika.BlockingConnection(params)
     
     def __del__(self):
         if self.connection:

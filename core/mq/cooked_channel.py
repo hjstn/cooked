@@ -15,18 +15,13 @@ CookedConsumeAckFn = Callable[[None], None]
 CookedConsumeCallbackFn = Callable[[Task, CookedConsumeAckFn, CookedConsumeAckFn], None]
 
 class CookedChannel(Generic[Task]):
-    mq: CookedMQ
-    queue: str
-    fanout: bool
-    channel: BlockingChannel
-
     def __init__(self, mq: CookedMQ, queue: str, purge: bool = False, fanout: bool = False):
-        self.mq = mq
-        self.queue = queue
-        self.purge = purge
-        self.fanout = fanout
+        self.mq: CookedMQ = mq
+        self.queue: str = queue
+        self.purge: bool = purge
+        self.fanou: bool = fanout
 
-        self.channel = mq._channel(queue)
+        self.channel: BlockingChannel = mq._channel(queue)
 
         if mq.leader and purge:
             # Producer only
