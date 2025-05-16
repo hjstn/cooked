@@ -1,4 +1,4 @@
-/// <reference types="chrome"/>yar
+/// <reference types="chrome"/>
 
 import { storageGet, storageSet } from "./mv-compat";
 import { initConfig } from "./utils";
