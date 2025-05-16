@@ -160,7 +160,7 @@ class CookedCollector:
         await self.ws.connected.wait()
 
     async def _setup_extension(self) -> None:
-        self.extension_worker = await self.context.wait_for_event('serviceworker')
+        self.extension_worker = await self.context.wait_for_event('serviceworker', timeout=5000)
         self.extension_id = self.extension_worker.url.split('/')[2]
 
         self.extension_background_page = await self.context.new_page()
