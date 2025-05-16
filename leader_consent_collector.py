@@ -14,7 +14,7 @@ from schema.cooked_task_consent_collector import CookedTaskConsentCollector
 from schema.cooked_result_consent_collector import CookedResultConsentCollector
 from schema.cooked_consent_action import CookedConsentAction
 
-async def recv_consent_results(mq: CookedMQ, results_filename: str):
+async def recv_consent_results(mq: CookedMQ, results_filename: str, resume: bool = False):
     """
     Receive cookie consent results from the message queue and write them to a file.
     
@@ -23,7 +23,7 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str):
         results_filename: File to write results to
     """
     # results_queue = CookedChannel[CookedResultConsentCollector](mq, 'cooked_consent_results', fanout=True, purge=not resume)
-    results_queue = CookedChannel[CookedResultConsentCollector](mq, 'cooked_results_consent_collector')
+    results_queue = CookedChannel[CookedResultConsentCollector](mq, 'cooked_results_consent_collector', purge=not resume)
 
     with open(results_filename, 'a', buffering=1) as results_file:
         for result, ack, nack in results_queue.consume():
@@ -46,7 +46,30 @@ async def recv_consent_results(mq: CookedMQ, results_filename: str):
             results_file.write(f'{json.dumps(result_dict)}\n')
             ack()
 
-async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action: CookedConsentAction = CookedConsentAction.OPT_OUT):
+async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action: CookedConsentAction, resume: bool = True, previous_filename: str = 'results/internal_links.jsonl'):
+    # Load internal links data
+    if not os.path.exists(internal_links_filename):
+        print(f'Error: Internal links file {internal_links_filename} not found')
+        return
+
+    # Track sites that have already been processed
+    processed_sites = set()
+    
+    # Load previously processed sites if resuming
+    if previous_filename and os.path.exists(previous_filename):
+        print(f'Loading previously processed sites from {previous_filename}')
+        try:
+            with open(previous_filename, 'r') as f:
+                for line in f:
+                    if line.strip():
+                        result = json.loads(line)
+                        site = result.get('site', '').replace('https://', '').replace('http://', '').split('/')[0]
+                        processed_sites.add(site)
+            
+            print(f'Loaded {len(processed_sites)} previously processed sites from {previous_filename}')
+        except Exception as e:
+            print(f'Error loading previous results: {e}')
+
     # Load internal links data
     if not os.path.exists(internal_links_filename):
         print(f'Error: Internal links file {internal_links_filename} not found')
@@ -64,7 +87,9 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
                     print(f'Error parsing JSON line: {e}')
     
     print(f'Loaded {len(sites_data)} sites from internal links file')
-    
+
+    ###
+
     # Set up the task queue
     task_queue = CookedChannel[CookedTaskConsentCollector](mq, 'cooked_task_consent_collector')
     
@@ -74,6 +99,11 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
         site = site_data.get('site', '')
         urls = site_data.get('urls', [])
         
+        # Skip sites that have already been processed
+        if site in processed_sites:
+            print(f'Skipping {site} because it has already been processed')
+            continue
+
         # Ensure URLs are properly formatted
         print(site)
 
@@ -109,6 +139,7 @@ async def main():
     """Main entry point for the consent leader."""
     parser = argparse.ArgumentParser(description='Cookie Consent Leader')
     parser.add_argument('--host', type=str, default='localhost', help='RabbitMQ host')
+    parser.add_argument('--resume', action='store_true', default=False, help='Resume from previous state')
     parser.add_argument('--internal-links', type=str, default='results/internal_links.jsonl', 
                         help='File containing internal links data')
     parser.add_argument('--previous', type=str, default='results/consent_results.jsonl', 
@@ -148,10 +179,13 @@ async def main():
             mq, 
             internal_links_filename=args.internal_links,
             action=consent_action,
+            resume=args.resume,
+            previous_filename=args.previous
         ),
         recv_consent_results(
             mq, 
             results_filename=args.results,
+            resume=args.resume
         )
     )
 
