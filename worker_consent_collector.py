@@ -28,11 +28,6 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
             
             collector = CookedCollector(p, user_agent, user_data_dir, extension_path, task.action)
             await collector.setup()
-<<<<<<< HEAD
-=======
-            print("setup complete")
-
->>>>>>> 6f9d0a2 (update crawler)
             try:
                 cookies, cmps, popups, pages_with_cmps, pages_with_popups, error, result = await collector.visit(task.urls)
 
