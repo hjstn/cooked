@@ -1,3 +1,4 @@
+import shutil
 import asyncio
 import argparse
 import tempfile
@@ -52,6 +53,8 @@ async def run_consent_task(mq: CookedMQ, p: Playwright, user_data_root: str, ext
             finally:
                 await collector.close()
             
+            shutil.rmtree(user_data_dir, ignore_errors=True)
+
             nack()
             
 

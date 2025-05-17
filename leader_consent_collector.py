@@ -63,6 +63,8 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
     
     sites_data = pd.read_json(internal_links_filename, lines=True).to_dict(orient='records')
     
+    sites_data = sites_data.sample(frac=1).reset_index(drop=True)
+
     print(f'Loaded {len(sites_data)} sites from internal links file')
 
     # Set up the task queue
@@ -74,7 +76,6 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
         urls = site_data.get('urls', [])
 
         if site in crawled_sites:
-            print(f'Skipping {site_data["site"]} because it has already been crawled')
             continue
 
         # Create the task
@@ -83,6 +84,8 @@ async def send_consent_tasks(mq: CookedMQ, internal_links_filename: str, action:
             urls=urls,
             action=action
         )
+
+        print(f'Sending task for {site} ({action.value})')
 
         # Send the task to the queue with retry logic
         while True:
